@@ -1,0 +1,1668 @@
+openapi: 3.0.3
+info:
+  title: DevCamper API
+  description: |
+    Backend API for DevCamper application, which is a bootcamp directory website.
+    For more in-depth docs with sample requests, visit the [Postman Doc](https://documenter.getpostman.com/view/8923145/SVtVVTzd?version=latest).
+  version: 1.0.0
+  contact:
+    name: Brad Traversy
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Development server
+tags:
+  - name: Authentication
+    description: Routes for user authentication including register, login, reset password, etc.
+  - name: Users
+    description: CRUD functionality for users (admin access only).
+  - name: Bootcamps
+    description: CRUD functionality and location-based searches for bootcamps.
+  - name: Courses
+    description: CRUD functionality for courses associated with bootcamps.
+  - name: Reviews
+    description: CRUD functionality for reviews associated with bootcamps and users.
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register User
+      description: Register a new user in the system.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegister'
+            examples:
+              newUser:
+                value:
+                  name: Jane Doe
+                  email: jane@example.com
+                  password: password123
+                  role: user
+      responses:
+        '200':
+          description: User registered successfully. Returns JWT token and user data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login User
+      description: Log in an existing user to obtain a JWT token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+            examples:
+              userLogin:
+                value:
+                  email: john@gmail.com
+                  password: '123456'
+      responses:
+        '200':
+          description: User logged in successfully. Returns JWT token and user data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/logout:
+    get:
+      tags:
+        - Authentication
+      summary: Logout User
+      description: Clear token cookie from the client to log out.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User logged out successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get Logged In User via Token
+      description: Retrieve details of the currently authenticated user.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successful retrieval of user data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/confirmemail:
+    get:
+      tags:
+        - Authentication
+      summary: Confirm Email
+      description: Confirm user's email address using a confirmation token.
+      parameters:
+        - in: query
+          name: token
+          schema:
+            type: string
+          required: true
+          description: The email confirmation token.
+      responses:
+        '200':
+          description: Email confirmed successfully. Returns JWT token and user data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /auth/updatedetails:
+    put:
+      tags:
+        - Authentication
+      summary: Update User Details
+      description: Update the name and/or email of the logged-in user.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateDetails'
+            examples:
+              updateDetails:
+                value:
+                  name: Johnathon Doe
+                  email: johnathon@gmail.com
+      responses:
+        '200':
+          description: User details updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/updatepassword:
+    put:
+      tags:
+        - Authentication
+      summary: Update Password
+      description: Update the password of the logged-in user. Requires current and new password.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdatePassword'
+            examples:
+              updatePassword:
+                value:
+                  currentPassword: '123456'
+                  newPassword: 'newpassword123'
+      responses:
+        '200':
+          description: Password updated successfully. Returns new JWT token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/forgotpassword:
+    post:
+      tags:
+        - Authentication
+      summary: Forgot Password
+      description: Generate a password reset token and send it to the user's email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserForgotPassword'
+            examples:
+              forgotPassword:
+                value:
+                  email: john@gmail.com
+      responses:
+        '200':
+          description: Email with reset token sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: string
+                    example: Email sent
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /auth/resetpassword/{resettoken}:
+    put:
+      tags:
+        - Authentication
+      summary: Reset Password
+      description: Reset user password using the token received via email.
+      parameters:
+        - in: path
+          name: resettoken
+          schema:
+            type: string
+          required: true
+          description: The password reset token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserResetPassword'
+            examples:
+              resetPassword:
+                value:
+                  password: 'newsecurepassword'
+      responses:
+        '200':
+          description: Password reset successfully. Returns JWT token and user data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /users:
+    get:
+      tags:
+        - Users
+      summary: Get All Users
+      description: Retrieve a list of all users. (Admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Select'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Successful retrieval of users.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersArrayResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - Users
+      summary: Create User
+      description: Create a new user (Admin only)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+            examples:
+              createUser:
+                value:
+                  name: Admin User
+                  email: adminuser@example.com
+                  password: '123456'
+                  role: admin
+      responses:
+        '201':
+          description: User created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Get Single User
+      description: Retrieve details of a single user by ID. (Admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Successful retrieval of user data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Users
+      summary: Update User
+      description: Update user details by ID. (Admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+            examples:
+              updateUser:
+                value:
+                  name: Updated Name
+                  email: updated@example.com
+                  role: publisher
+      responses:
+        '200':
+          description: User updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Users
+      summary: Delete User
+      description: Delete a user by ID. (Admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: User deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /bootcamps:
+    get:
+      tags:
+        - Bootcamps
+      summary: Get All Bootcamps
+      description: Retrieve a list of all bootcamps, with filtering, sorting, and pagination options.
+      parameters:
+        - $ref: '#/components/parameters/Select'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: careers
+          schema:
+            type: string
+          description: Filter by careers (comma-separated, e.g., 'Web Development,UI/UX')
+        - in: query
+          name: housing
+          schema:
+            type: boolean
+          description: Filter by housing availability (true/false)
+        - in: query
+          name: averageCost[gte]
+          schema:
+            type: number
+          description: Filter by minimum average cost
+        - in: query
+          name: averageRating[lte]
+          schema:
+            type: number
+          description: Filter by maximum average rating
+      responses:
+        '200':
+          description: Successful retrieval of bootcamps.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootcampsArrayResponse'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags:
+        - Bootcamps
+      summary: Create New Bootcamp
+      description: Add a new bootcamp to the database. (Publisher or Admin only, each publisher can only have one bootcamp)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootcampCreate'
+            examples:
+              newBootcamp:
+                value:
+                  name: Example Bootcamp
+                  description: A new example bootcamp.
+                  website: https://example.com
+                  phone: (555) 555-5555
+                  email: info@example.com
+                  address: 123 Main St, Anytown, USA
+                  careers: ["Web Development", "Data Science"]
+                  housing: true
+                  jobAssistance: true
+                  jobGuarantee: false
+                  acceptGi: true
+      responses:
+        '201':
+          description: Bootcamp created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootcampResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /bootcamps/{id}:
+    get:
+      tags:
+        - Bootcamps
+      summary: Get Single Bootcamp
+      description: Retrieve details of a single bootcamp by ID.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Successful retrieval of bootcamp data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootcampResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Bootcamps
+      summary: Update Bootcamp
+      description: Update details of a bootcamp by ID. (Owner or Admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootcampUpdate'
+            examples:
+              updateBootcamp:
+                value:
+                  description: Updated description for the bootcamp.
+                  website: https://updatedexample.com
+      responses:
+        '200':
+          description: Bootcamp updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootcampResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Bootcamps
+      summary: Delete Bootcamp
+      description: Delete a bootcamp by ID. (Owner or Admin only). Also deletes associated courses and reviews.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Bootcamp deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /bootcamps/radius/{zipcode}/{distance}:
+    get:
+      tags:
+        - Bootcamps
+      summary: Get Bootcamps within a Radius
+      description: Retrieve bootcamps within a specified distance from a given zipcode.
+      parameters:
+        - in: path
+          name: zipcode
+          schema:
+            type: string
+          required: true
+          description: The zipcode to search from.
+        - in: path
+          name: distance
+          schema:
+            type: number
+          required: true
+          description: The distance in miles.
+      responses:
+        '200':
+          description: Successful retrieval of bootcamps within radius.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Bootcamp'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /bootcamps/{id}/photo:
+    put:
+      tags:
+        - Bootcamps
+      summary: Upload Bootcamp Photo
+      description: Upload a photo for a specific bootcamp. (Owner or Admin only). Max size 1MB, image types only.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
+      responses:
+        '200':
+          description: Photo uploaded successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: string
+                    example: photo_5d725a1b7b292f5f8ceff788.jpg
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /courses:
+    get:
+      tags:
+        - Courses
+      summary: Get All Courses
+      description: Retrieve a list of all courses, with filtering, sorting, and pagination options.
+      parameters:
+        - $ref: '#/components/parameters/Select'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: tuition[gte]
+          schema:
+            type: number
+          description: Filter by minimum tuition cost
+        - in: query
+          name: minimumSkill
+          schema:
+            type: string
+            enum: ['beginner', 'intermediate', 'advanced']
+          description: Filter by minimum skill level
+      responses:
+        '200':
+          description: Successful retrieval of courses.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursesArrayResponse'
+  /bootcamps/{bootcampId}/courses:
+    get:
+      tags:
+        - Courses
+      summary: Get Courses for a specific Bootcamp
+      description: Retrieve courses associated with a specific bootcamp ID.
+      parameters:
+        - in: path
+          name: bootcampId
+          schema:
+            type: string
+            format: ObjectId
+          required: true
+          description: The ID of the bootcamp to retrieve courses for.
+      responses:
+        '200':
+          description: Successful retrieval of courses for the bootcamp.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Course'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Courses
+      summary: Add Course to Bootcamp
+      description: Add a new course to a specific bootcamp. (Publisher or Admin only).
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bootcampId
+          schema:
+            type: string
+            format: ObjectId
+          required: true
+          description: The ID of the bootcamp to add the course to.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseCreate'
+            examples:
+              newCourse:
+                value:
+                  title: Advanced Node.js
+                  description: Deep dive into Node.js and Express.
+                  weeks: '6'
+                  tuition: 7500
+                  minimumSkill: advanced
+                  scholarshipAvailable: false
+      responses:
+        '200':
+          description: Course added successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{id}:
+    get:
+      tags:
+        - Courses
+      summary: Get Single Course
+      description: Retrieve details of a single course by ID.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Successful retrieval of course data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Courses
+      summary: Update Course
+      description: Update details of a course by ID. (Publisher or Admin only).
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseUpdate'
+            examples:
+              updateCourse:
+                value:
+                  tuition: 8000
+                  scholarshipAvailable: true
+      responses:
+        '200':
+          description: Course updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Courses
+      summary: Delete Course
+      description: Delete a course by ID. (Publisher or Admin only).
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Course deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /reviews:
+    get:
+      tags:
+        - Reviews
+      summary: Get All Reviews
+      description: Retrieve a list of all reviews, with filtering, sorting, and pagination options.
+      parameters:
+        - $ref: '#/components/parameters/Select'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: rating[gte]
+          schema:
+            type: number
+          description: Filter by minimum rating
+      responses:
+        '200':
+          description: Successful retrieval of reviews.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewsArrayResponse'
+  /bootcamps/{bootcampId}/reviews:
+    get:
+      tags:
+        - Reviews
+      summary: Get Reviews for a specific Bootcamp
+      description: Retrieve reviews associated with a specific bootcamp ID.
+      parameters:
+        - in: path
+          name: bootcampId
+          schema:
+            type: string
+            format: ObjectId
+          required: true
+          description: The ID of the bootcamp to retrieve reviews for.
+      responses:
+        '200':
+          description: Successful retrieval of reviews for the bootcamp.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Review'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Reviews
+      summary: Add Review for Bootcamp
+      description: Add a new review to a specific bootcamp. (User or Admin only, users can only submit one review per bootcamp).
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: bootcampId
+          schema:
+            type: string
+            format: ObjectId
+          required: true
+          description: The ID of the bootcamp to add the review to.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewCreate'
+            examples:
+              newReview:
+                value:
+                  title: Great Experience!
+                  text: I highly recommend this bootcamp, learned a lot.
+                  rating: 9
+      responses:
+        '201':
+          description: Review added successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: User already reviewed this bootcamp.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /reviews/{id}:
+    get:
+      tags:
+        - Reviews
+      summary: Get Single Review
+      description: Retrieve details of a single review by ID.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Successful retrieval of review data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Reviews
+      summary: Update Review
+      description: Update details of a review by ID. (Owner or Admin only).
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewUpdate'
+            examples:
+              updateReview:
+                value:
+                  title: Really Great Experience!
+                  rating: 10
+      responses:
+        '200':
+          description: Review updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Reviews
+      summary: Delete Review
+      description: Delete a review by ID. (Owner or Admin only).
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Review deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdPath:
+      in: path
+      name: id
+      schema:
+        type: string
+        format: ObjectId
+      required: true
+      description: The ID of the resource.
+    Select:
+      in: query
+      name: select
+      schema:
+        type: string
+      description: Fields to include (comma-separated). Example `name,description`.
+    Sort:
+      in: query
+      name: sort
+      schema:
+        type: string
+      description: Sort by field. Use `-` for descending. Example `name,-createdAt`.
+    Page:
+      in: query
+      name: page
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number for pagination.
+    Limit:
+      in: query
+      name: limit
+      schema:
+        type: integer
+        minimum: 1
+        default: 25
+      description: Number of results per page for pagination.
+
+  responses:
+    BadRequest:
+      description: Invalid request or validation error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Not authorized to access this route.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: User role not authorized to access this route.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ServerError:
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: Something went wrong
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          example: {}
+    PaginationObject:
+      type: object
+      properties:
+        next:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+        prev:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+
+    # User Schemas
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          format: ObjectId
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [user, publisher, admin]
+          default: user
+        isEmailConfirmed:
+          type: boolean
+          default: false
+        twoFactorEnable:
+          type: boolean
+          default: false
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - name
+        - email
+        - role
+    UserRegister:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+          writeOnly: true
+        role:
+          type: string
+          enum: [user, publisher]
+          default: user
+      required:
+        - name
+        - email
+        - password
+    UserLogin:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+          writeOnly: true
+      required:
+        - email
+        - password
+    UserUpdateDetails:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+    UserUpdatePassword:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+          minLength: 6
+          writeOnly: true
+        newPassword:
+          type: string
+          minLength: 6
+          writeOnly: true
+      required:
+        - currentPassword
+        - newPassword
+    UserForgotPassword:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+        - email
+    UserCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+          writeOnly: true
+        role:
+          type: string
+          enum: [user, publisher, admin]
+          default: user
+      required:
+        - name
+        - email
+        - password
+    UserUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [user, publisher, admin]
+        password:
+          type: string
+          minLength: 6
+          writeOnly: true
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        token:
+          type: string
+          description: JWT authentication token
+        data:
+          $ref: '#/components/schemas/User'
+    UserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/User'
+    UsersArrayResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+        pagination:
+          $ref: '#/components/schemas/PaginationObject'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    # Bootcamp Schemas
+    Bootcamp:
+      type: object
+      properties:
+        _id:
+          type: string
+          format: ObjectId
+          readOnly: true
+        user:
+          type: string
+          format: ObjectId
+          description: ID of the user who owns this bootcamp
+          readOnly: true
+        name:
+          type: string
+          maxLength: 50
+        slug:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          maxLength: 500
+        website:
+          type: string
+          format: url
+        phone:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          format: email
+        address:
+          type: string
+        location:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [Point]
+            coordinates:
+              type: array
+              items:
+                type: number
+              description: [longitude, latitude]
+            formattedAddress:
+              type: string
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            zipcode:
+              type: string
+            country:
+              type: string
+          description: GeoJSON Point for location
+        careers:
+          type: array
+          items:
+            type: string
+            enum: ['Web Development', 'Mobile Development', 'UI/UX', 'Data Science', 'Business', 'Other']
+        averageRating:
+          type: number
+          format: float
+          minimum: 1
+          maximum: 10
+          readOnly: true
+        averageCost:
+          type: number
+          readOnly: true
+        photo:
+          type: string
+          default: no-photo.jpg
+          readOnly: true
+        housing:
+          type: boolean
+          default: false
+        jobAssistance:
+          type: boolean
+          default: false
+        jobGuarantee:
+          type: boolean
+          default: false
+        acceptGi:
+          type: boolean
+          default: false
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        courses:
+          type: array
+          items:
+            $ref: '#/components/schemas/Course'
+          description: Populated courses (virtual field)
+          readOnly: true
+      required:
+        - name
+        - description
+        - careers
+        - address
+    BootcampCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        description:
+          type: string
+          maxLength: 500
+        website:
+          type: string
+          format: url
+        phone:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          format: email
+        address:
+          type: string
+        careers:
+          type: array
+          items:
+            type: string
+            enum: ['Web Development', 'Mobile Development', 'UI/UX', 'Data Science', 'Business', 'Other']
+        housing:
+          type: boolean
+          default: false
+        jobAssistance:
+          type: boolean
+          default: false
+        jobGuarantee:
+          type: boolean
+          default: false
+        acceptGi:
+          type: boolean
+          default: false
+      required:
+        - name
+        - description
+        - careers
+        - address
+    BootcampUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        description:
+          type: string
+          maxLength: 500
+        website:
+          type: string
+          format: url
+        phone:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          format: email
+        address:
+          type: string
+        careers:
+          type: array
+          items:
+            type: string
+            enum: ['Web Development', 'Mobile Development', 'UI/UX', 'Data Science', 'Business', 'Other']
+        housing:
+          type: boolean
+        jobAssistance:
+          type: boolean
+        jobGuarantee:
+          type: boolean
+        acceptGi:
+          type: boolean
+    BootcampResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Bootcamp'
+    BootcampsArrayResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+        pagination:
+          $ref: '#/components/schemas/PaginationObject'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bootcamp'
+
+    # Course Schemas
+    Course:
+      type: object
+      properties:
+        _id:
+          type: string
+          format: ObjectId
+          readOnly: true
+        title:
+          type: string
+        description:
+          type: string
+        weeks:
+          type: string
+        tuition:
+          type: number
+        minimumSkill:
+          type: string
+          enum: ['beginner', 'intermediate', 'advanced']
+        scholarshipAvailable:
+          type: boolean
+          default: false
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        bootcamp:
+          type: string
+          format: ObjectId
+          description: ID of the associated bootcamp
+          readOnly: true
+        user:
+          type: string
+          format: ObjectId
+          description: ID of the user who created this course
+          readOnly: true
+      required:
+        - title
+        - description
+        - weeks
+        - tuition
+        - minimumSkill
+    CourseCreate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        weeks:
+          type: string
+        tuition:
+          type: number
+        minimumSkill:
+          type: string
+          enum: ['beginner', 'intermediate', 'advanced']
+        scholarshipAvailable:
+          type: boolean
+          default: false
+      required:
+        - title
+        - description
+        - weeks
+        - tuition
+        - minimumSkill
+    CourseUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        weeks:
+          type: string
+        tuition:
+          type: number
+        minimumSkill:
+          type: string
+          enum: ['beginner', 'intermediate', 'advanced']
+        scholarshipAvailable:
+          type: boolean
+    CourseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Course'
+    CoursesArrayResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+        pagination:
+          $ref: '#/components/schemas/PaginationObject'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Course'
+
+    # Review Schemas
+    Review:
+      type: object
+      properties:
+        _id:
+          type: string
+          format: ObjectId
+          readOnly: true
+        title:
+          type: string
+          maxLength: 100
+        text:
+          type: string
+        rating:
+          type: number
+          minimum: 1
+          maximum: 10
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        bootcamp:
+          type: string
+          format: ObjectId
+          description: ID of the associated bootcamp
+          readOnly: true
+        user:
+          type: string
+          format: ObjectId
+          description: ID of the user who created this review
+          readOnly: true
+      required:
+        - title
+        - text
+        - rating
+    ReviewCreate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 100
+        text:
+          type: string
+        rating:
+          type: number
+          minimum: 1
+          maximum: 10
+      required:
+        - title
+        - text
+        - rating
+    ReviewUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 100
+        text:
+          type: string
+        rating:
+          type: number
+          minimum: 1
+          maximum: 10
+    ReviewResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Review'
+    ReviewsArrayResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+        pagination:
+          $ref: '#/components/schemas/PaginationObject'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
