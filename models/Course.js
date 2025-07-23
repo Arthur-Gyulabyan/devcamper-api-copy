@@ -27,6 +27,12 @@ const CourseSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  completionStatus: {
+    type: String,
+    enum: ['inProgress', 'completed', 'cancelled'],
+    default: 'inProgress',
+    required: [true, 'Please add a completion status']
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -81,7 +87,10 @@ CourseSchema.post('remove', async function () {
 
 // Call getAverageCost after tuition update
 CourseSchema.post("findOneAndUpdate", async function (doc) {
-  if (this.tuition != doc.tuition) {
+  // Check if tuition was actually changed before recalculating
+  // The 'this' refers to the query object, 'doc' refers to the updated document.
+  // The query `this._update` contains the fields being updated.
+  if (this._update && this._update.tuition && this._update.tuition !== doc.tuition) {
     await doc.constructor.getAverageCost(doc.bootcamp);
   }
 });
