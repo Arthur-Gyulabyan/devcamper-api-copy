@@ -27,15 +27,6 @@ const CourseSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  completionStatus: { // Renamed from 'status'
-    type: String,
-    enum: ['scheduled', 'paused', 'archived'],
-    default: 'scheduled',
-    required: [true, 'Please add a course completion status'] // Updated message
-  },
-  completionPercentage: {
-    type: Number
-  },
   createdAt: {
     type: Date,
     default: Date.now

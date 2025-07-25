@@ -190,17 +190,20 @@ exports.bootcampPhotoUpload = asyncHandler(async (req, res, next) => {
   // Create custom filename
   file.name = `photo_${bootcamp._id}${path.parse(file.name).ext}`;
 
-  file.mv(`${process.env.FILE_UPLOAD_PATH}/${file.name}`, async err => {
-    if (err) {
-      console.error(err);
-      return next(new ErrorResponse(`Problem with file upload`, 500));
-    }
-
-    await Bootcamp.findByIdAndUpdate(req.params.id, { photo: file.name });
-
-    res.status(200).json({
-      success: true,
-      data: file.name
+  // Use async/await for file.mv
+  await new Promise((resolve, reject) => {
+    file.mv(`${process.env.FILE_UPLOAD_PATH}/${file.name}`, (err) => {
+      if (err) {
+        return reject(err);
+      }
+      resolve();
     });
+  });
+
+  await Bootcamp.findByIdAndUpdate(req.params.id, { photo: file.name });
+
+  res.status(200).json({
+    success: true,
+    data: file.name
   });
 });

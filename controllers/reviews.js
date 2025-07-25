@@ -27,7 +27,7 @@ exports.getReviews = asyncHandler(async (req, res, next) => {
 exports.getReview = asyncHandler(async (req, res, next) => {
   const review = await Review.findById(req.params.id).populate({
     path: 'bootcamp',
-    select: 'name description'
+    select: 'name description title'
   });
 
   if (!review) {
@@ -89,8 +89,6 @@ exports.updateReview = asyncHandler(async (req, res, next) => {
     new: true,
     runValidators: true
   });
-
-  review.save();
 
   res.status(200).json({
     success: true,
